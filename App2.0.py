@@ -3,8 +3,6 @@ import pandas as pd
 import json
 import os
 from datetime import date
-import PyPDF2
-import pdfplumber
 import re
 
 # --- App Config ---
