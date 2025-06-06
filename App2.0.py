@@ -662,6 +662,11 @@ elif st.session_state.page == "detail":
     #  "Request Details" PAGE (with WhatsApp‐style chat bubbles)
     # ─────────────────────────────────────────────────────────────────────
 
+   elif st.session_state.page == "detail":
+    # ─────────────────────────────────────────────────────────────────────
+    #  "Request Details" PAGE (with WhatsApp‐style, centered chat bubbles)
+    # ─────────────────────────────────────────────────────────────────────
+
     st.markdown("## 📂 Request Details")
     st.markdown(
         f"Logged in as: **{st.session_state.user_name}**  |  [🔙 Back to All Requests](#)",
@@ -835,53 +840,59 @@ elif st.session_state.page == "detail":
             go_to("requests")
 
     # ─────────────────────────────────────────────────────────────────────
-    #  COMMENTS SECTION (WhatsApp‐style bubbles with author names)
+    #  COMMENTS SECTION (WhatsApp‐style, centered chat bubbles)
     # ─────────────────────────────────────────────────────────────────────
 
-    # 1) Inject CSS for chat bubbles + author labels
+    # 1) Inject CSS (narrower bubbles, WhatsApp green for outgoing)
     st.markdown(
         """
         <style>
-        /* Incoming author label */
+        /* Centering container ensures bubbles only occupy the middle */
+        .chat-container {
+            width: 100%;
+        }
+        /* Incoming author label (gray, left) */
         .chat-author-in {
             font-size: 12px;
             color: #555;
             margin-left: 5px;
-            margin-top: 8px;
+            margin-top: 6px;
             clear: both;
         }
-        /* Outgoing author label */
+        /* Outgoing author label (WhatsApp teal‐green, right) */
         .chat-author-out {
             font-size: 12px;
-            color: #34B7F1;
+            color: #25D366;
             margin-right: 5px;
-            margin-top: 8px;
+            margin-top: 6px;
             clear: both;
             text-align: right;
         }
-        /* Incoming bubble */
+        /* Incoming bubble (light gray, left) */
         .chat-bubble-in {
-            background: #E5E5EA;
+            background: #EDEDED;
             color: #000;
             padding: 8px 12px;
-            border-radius: 18px;
+            border-radius: 16px;
             margin: 2px 0;
-            max-width: 60%;
+            max-width: 40%;
             float: left;
             clear: both;
+            word-wrap: break-word;
         }
-        /* Outgoing bubble */
+        /* Outgoing bubble (WhatsApp green, right) */
         .chat-bubble-out {
-            background: #34B7F1;
+            background: #25D366;
             color: #FFF;
             padding: 8px 12px;
-            border-radius: 18px;
+            border-radius: 16px;
             margin: 2px 0;
-            max-width: 60%;
+            max-width: 40%;
             float: right;
             clear: both;
+            word-wrap: break-word;
         }
-        /* Timestamp below each bubble */
+        /* Timestamp below bubble (small, gray) */
         .chat-timestamp {
             font-size: 10px;
             color: #888;
@@ -897,40 +908,47 @@ elif st.session_state.page == "detail":
         unsafe_allow_html=True
     )
 
-    # 2) Render existing comments with author + bubble
-    st.markdown("### 💬 Comments (Chat‐Style)")
-    existing_comments = st.session_state.comments.get(str(index), [])
+    # 2) Render the chat inside a centered column (so it’s not full-width)
+    st.markdown("### 💬 Comments (Chat-Style)")
+    # Create three columns; middle one is where we place all bubbles
+    col_l, col_center, col_r = st.columns([1, 6, 1])
+    with col_center:
+        existing_comments = st.session_state.comments.get(str(index), [])
 
-    for comment in existing_comments:
-        author = comment["author"]
-        text = comment["text"]
-        when = comment.get("when", "")  # e.g. "2025-06-06 17:12"
+        for comment in existing_comments:
+            author = comment["author"]
+            text = comment["text"]
+            when = comment.get("when", "")
 
-        if author == st.session_state.user_name:
-            # Outgoing: show author name in blue on right, then blue bubble on right
-            st.markdown(
-                f'<div class="chat-author-out">{author}</div>'
-                f'<div class="chat-bubble-out">{text}</div>'
-                f'<div class="chat-timestamp" style="text-align: right;">{when}</div>'
-                f'<div class="clearfix"></div>',
-                unsafe_allow_html=True
-            )
-        else:
-            # Incoming: show author name in gray on left, then gray bubble on left
-            st.markdown(
-                f'<div class="chat-author-in">{author}</div>'
-                f'<div class="chat-bubble-in">{text}</div>'
-                f'<div class="chat-timestamp" style="text-align: left;">{when}</div>'
-                f'<div class="clearfix"></div>',
-                unsafe_allow_html=True
-            )
+            if author == st.session_state.user_name:
+                # Outgoing: author label on right, green bubble on right
+                st.markdown(
+                    f'<div class="chat-author-out">{author}</div>'
+                    f'<div class="chat-bubble-out">{text}</div>'
+                    f'<div class="chat-timestamp" style="text-align: right;">{when}</div>'
+                    f'<div class="clearfix"></div>',
+                    unsafe_allow_html=True
+                )
+            else:
+                # Incoming: author label on left, gray bubble on left
+                st.markdown(
+                    f'<div class="chat-author-in">{author}</div>'
+                    f'<div class="chat-bubble-in">{text}</div>'
+                    f'<div class="chat-timestamp" style="text-align: left;">{when}</div>'
+                    f'<div class="clearfix"></div>',
+                    unsafe_allow_html=True
+                )
 
-    # 3) Input for new message & Send button
-    st.markdown("---")
-    new_message = st.text_input("Type your message here…", key=f"new_msg_{index}")
-    if st.button("Send", key=f"send_{index}"):
-        if new_message.strip():
-            add_comment(index, st.session_state.user_name, new_message.strip())
-            # Clear the input and rerun so the new message appears
-            st.session_state[f"new_msg_{index}"] = ""
-            st.rerun()
+        # 3) Input for new message & Send button (also in center column)
+        st.markdown("---")
+        text_input_key = f"new_msg_{index}"
+        new_message = st.text_input("Type your message here…", key=text_input_key)
+
+        if st.button("Send", key=f"send_{index}"):
+            if new_message.strip():
+                # 1) Save the new comment
+                add_comment(index, st.session_state.user_name, new_message.strip())
+                # 2) Clear the box only if the key already exists
+                if text_input_key in st.session_state:
+                    st.session_state[text_input_key] = ""
+                st.rerun()
