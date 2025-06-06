@@ -471,9 +471,12 @@ elif st.session_state.page == "sales_order":
         if st.button("⬅ Back to Home", use_container_width=True):
             go_to("home")
 
+# -------------------------------------------
+# -------- “All Requests” Page  -------------
+# -------------------------------------------
 elif st.session_state.page == "requests":
-    # --- Auto-refresh every 5 seconds ---
-    _ = st_autorefresh(interval=5000, limit=None, key="requests_refresh")
+    # --- Auto-refresh every 1 second (to capture any new requests) ---
+    _ = st_autorefresh(interval=1000, limit=None, key="requests_refresh")
 
     # --- Re-load data from disk so we see the latest requests ---
     load_data()
@@ -495,7 +498,7 @@ elif st.session_state.page == "requests":
             ["All", "💲 Purchase", "🛒 Sales"]
         )
 
-    # --- Filter Logic ---
+    # --- Build a list of filtered requests ---
     filtered_requests = []
     for req in st.session_state.requests:
         matches_search = search_term.lower() in json.dumps(req).lower()
@@ -508,18 +511,46 @@ elif st.session_state.page == "requests":
             filtered_requests.append(req)
 
     # --- Sort by soonest ETA date (earliest first) ---
-    from datetime import datetime, date
+    from datetime import datetime, date as _date
 
     def parse_eta(req):
         eta_str = req.get("ETA Date", "")
         try:
             return datetime.strptime(eta_str, "%Y-%m-%d").date()
         except:
-            return date.max
+            return _date.max
 
     filtered_requests = sorted(filtered_requests, key=parse_eta)
 
     if filtered_requests:
+        # --- CSV EXPORT BUTTON ---
+        # We flatten any list‐fields (like Description, Quantity) into semicolon-separated text.
+        # At the same time, we skip "Attachments", "StatusHistory", and any comment/history fields.
+        flattened = []
+        for req in filtered_requests:
+            flat_req = {}
+            for k, v in req.items():
+                # Skip attachments, history, or comment keys
+                if k.lower() in ("attachments", "statushistory", "comments", "commentshistory"):
+                    continue
+
+                if isinstance(v, list):
+                    # join list contents with semicolons
+                    flat_req[k] = ";".join(str(x) for x in v)
+                else:
+                    flat_req[k] = v
+            flattened.append(flat_req)
+
+        df_export = pd.DataFrame(flattened)
+        csv_data = df_export.to_csv(index=False).encode("utf-8")
+
+        st.download_button(
+            label="📥 Export Filtered Requests to CSV",
+            data=csv_data,
+            file_name="requests_export.csv",
+            mime="text/csv"
+        )
+
         # --- Table Header Styling (make headers larger) ---
         st.markdown("""
         <style>
@@ -528,18 +559,20 @@ elif st.session_state.page == "requests":
             font-size: 18px;
             padding: 0.5rem 0;
         }
-        .overdue-text {
+        .overdue-icon {
             color: #e74c3c;
             font-weight: 600;
-            font-size: 13px;
+            font-size: 14px;
+            margin-left: 6px;
+            vertical-align: middle;
         }
         .type-icon {
-            font-size: 16px;
+            font-size: 18px;
         }
         </style>
         """, unsafe_allow_html=True)
 
-        # --- Table Header ---
+        # --- Render Table Header ---
         header_cols = st.columns([1, 2, 3, 1, 2, 2, 2, 2, 2, 1])
         headers = [
             "Type", "Ref#", "Description", "Qty", "Status",
@@ -548,15 +581,15 @@ elif st.session_state.page == "requests":
         for col, header in zip(header_cols, headers):
             col.markdown(f"<div class='header-row'>{header}</div>", unsafe_allow_html=True)
 
-        # --- Today’s date for comparison ---
-        today = date.today()
+        # --- Today’s date for overdue calculation ---
+        today = _date.today()
 
         # --- Table Rows ---
         for i, req in enumerate(filtered_requests):
             with st.container():
                 cols = st.columns([1, 2, 3, 1, 2, 2, 2, 2, 2, 1])
 
-                # --- Determine if this row is overdue (only if not READY or CANCELLED) ---
+                # Determine if this row is overdue (only if not READY or CANCELLED)
                 status_val = req.get("Status", "").upper()
                 eta_str = req.get("ETA Date", "")
                 try:
@@ -570,20 +603,12 @@ elif st.session_state.page == "requests":
                     and status_val not in ("READY", "CANCELLED")
                 )
 
-                # 1) Type (icon) or Overdue indicator
-                if is_overdue:
-                    # Show a red "⚠️ Overdue" in the Type column
-                    cols[0].markdown(
-                        "<div class='overdue-text'>⚠️ Overdue</div>",
-                        unsafe_allow_html=True
-                    )
-                else:
-                    # Show the original Type icon (e.g., 🛒 or 💲)
-                    type_icon = req.get("Type", "")
-                    cols[0].markdown(
-                        f"<span class='type-icon'>{type_icon}</span>",
-                        unsafe_allow_html=True
-                    )
+                # 1) Type (icon)
+                type_icon = req.get("Type", "")
+                cols[0].markdown(
+                    f"<span class='type-icon'>{type_icon}</span>",
+                    unsafe_allow_html=True
+                )
 
                 # 2) Ref#: prefer "Order#", but fall back to "Invoice"
                 ref_val = req.get("Order#", "") or req.get("Invoice", "")
@@ -602,8 +627,10 @@ elif st.session_state.page == "requests":
                     qty_display = str(qty_list)
                 cols[3].write(qty_display)
 
-                # 5) Status badge (no overdue text here)
+                # 5) Status column: show status badge, then possibly overdue icon to the right with tooltip
                 status_html = format_status_badge(status_val)
+                if is_overdue:
+                    status_html += "<abbr title='Overdue'><span class='overdue-icon'>⚠️</span></abbr>"
                 cols[4].markdown(status_html, unsafe_allow_html=True)
 
                 # 6) Ordered Date
@@ -628,6 +655,7 @@ elif st.session_state.page == "requests":
 
     if st.button("⬅ Back to Home"):
         go_to("home")
+
 
 elif st.session_state.page == "detail":
     st.markdown("## 📂 Request Details")
