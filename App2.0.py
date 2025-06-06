@@ -658,208 +658,279 @@ elif st.session_state.page == "requests":
 
 
 elif st.session_state.page == "detail":
+    # ─────────────────────────────────────────────────────────────────────
+    #  "Request Details" PAGE (with WhatsApp‐style chat bubbles)
+    # ─────────────────────────────────────────────────────────────────────
+
     st.markdown("## 📂 Request Details")
+    st.markdown(
+        f"Logged in as: **{st.session_state.user_name}**  |  [🔙 Back to All Requests](#)",
+        unsafe_allow_html=True
+    )
+    st.markdown("<hr>", unsafe_allow_html=True)
+
     index = st.session_state.selected_request
-
-    # --- Global Styles ---
-    st.markdown("""
-    <style>
-    html, body, [class*="css"] {
-        font-family: 'Segoe UI', sans-serif;
-    }
-    h1, h2, h3, h4 {
-        color: #003366;
-        font-weight: 600;
-    }
-    .stTextInput > div > div > input,
-    .stSelectbox > div, .stDateInput > div, .stTextArea > div > textarea {
-        background-color: #f7f9fc !important;
-        border-radius: 8px !important;
-        padding: 0.4rem !important;
-        border: 1px solid #dfe6ec !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    if index is not None and index < len(st.session_state.requests):
-        request = st.session_state.requests[index]
-        updated_fields = {}
-
-        # Determine if this is a Purchase (💲) or Sales (🛒) order
-        is_purchase = (request.get("Type") == "💲")
-        is_sales = (request.get("Type") == "🛒")
-
-        # --- 1) Order Information ---
-        with st.container():
-            st.markdown("### 📄 Order Information")
-            col1, col2 = st.columns(2)
-
-            with col1:
-                # Ref# / Order#
-                order_number_val = request.get("Order#", "")
-                order_number = st.text_input(
-                    "Ref#",
-                    value=order_number_val,
-                    key="detail_Order#"
-                )
-                if order_number != order_number_val:
-                    updated_fields["Order#"] = order_number
-
-                # Dynamic rows for Description & Quantity
-                desc_list = request.get("Description", [])
-                qty_list = request.get("Quantity", [])
-                num_rows = max(len(desc_list), len(qty_list), 1)
-
-                st.markdown("#### 📋 Items")
-                new_descriptions = []
-                new_quantities = []
-                for i in range(num_rows):
-                    cA, cB = st.columns(2)
-                    desc_val = desc_list[i] if i < len(desc_list) else ""
-                    qty_val = qty_list[i] if i < len(qty_list) else ""
-                    new_desc = cA.text_input(
-                        f"Description #{i+1}",
-                        value=desc_val,
-                        key=f"detail_desc_{i}"
-                    ).strip()
-                    new_qty_raw = cB.text_input(
-                        f"Quantity #{i+1}",
-                        value=str(qty_val),
-                        key=f"detail_qty_{i}"
-                    ).strip()
-                    try:
-                        new_qty = int(float(new_qty_raw)) if new_qty_raw else ""
-                    except:
-                        new_qty = new_qty_raw
-                    new_descriptions.append(new_desc)
-                    new_quantities.append(new_qty)
-
-                if new_descriptions != desc_list:
-                    updated_fields["Description"] = new_descriptions
-                if new_quantities != qty_list:
-                    updated_fields["Quantity"] = new_quantities
-
-                # Status
-                status_options = [" ", "PENDING", "ORDERED", "READY", "CANCELLED", "IN TRANSIT", "INCOMPLETE"]
-                current_status = request.get("Status", " ")
-                if current_status not in status_options:
-                    current_status = " "
-                status = st.selectbox(
-                    "Status",
-                    status_options,
-                    index=status_options.index(current_status),
-                    key="detail_Status"
-                )
-                if status != current_status:
-                    updated_fields["Status"] = status
-
-            with col2:
-                # Tracking# / Invoice
-                invoice_val = request.get("Invoice", "")
-                invoice = st.text_input(
-                    "Tracking#",
-                    value=invoice_val,
-                    key="detail_Invoice"
-                )
-                if invoice != invoice_val:
-                    updated_fields["Invoice"] = invoice
-
-                # Proveedor vs Cliente
-                partner_label = "Proveedor" if is_purchase else "Cliente"
-                partner_val = request.get(partner_label, "")
-                partner = st.text_input(
-                    partner_label,
-                    value=partner_val,
-                    key=f"detail_{partner_label}"
-                )
-                if partner != partner_val:
-                    updated_fields[partner_label] = partner
-
-                # Método de Pago
-                pago_val = request.get("Pago", " ")
-                pago = st.selectbox(
-                    "Método de Pago",
-                    [" ", "Wire", "Cheque", "Credito", "Efectivo"],
-                    index=[" ", "Wire", "Cheque", "Credito", "Efectivo"].index(pago_val),
-                    key="detail_Pago"
-                )
-                if pago != pago_val:
-                    updated_fields["Pago"] = pago
-
-                # Encargado
-                encargado_val = request.get("Encargado", " ")
-                encargado = st.selectbox(
-                    "Encargado",
-                    [" ", "Andres", "Tito", "Luz", "David", "Marcela", "John", "Carolina", "Thea"],
-                    index=[" ", "Andres", "Tito", "Luz", "David", "Marcela", "John", "Carolina", "Thea"].index(encargado_val),
-                    key="detail_Encargado"
-                )
-                if encargado != encargado_val:
-                    updated_fields["Encargado"] = encargado
-
-        # --- 2) Shipping Information ---
-        with st.container():
-            st.markdown("### 🚚 Shipping Information")
-            col3, col4 = st.columns(2)
-            with col3:
-                date_val = request.get("Date", str(date.today()))
-                order_date = st.date_input(
-                    "Order Date",
-                    value=pd.to_datetime(date_val),
-                    key="detail_Date"
-                )
-                if str(order_date) != date_val:
-                    updated_fields["Date"] = str(order_date)
-            with col4:
-                eta_val = request.get("ETA Date", str(date.today()))
-                eta_date = st.date_input(
-                    "ETA Date",
-                    value=pd.to_datetime(eta_val),
-                    key="detail_ETA"
-                )
-                if str(eta_date) != eta_val:
-                    updated_fields["ETA Date"] = str(eta_date)
-
-            ship_val = request.get("Shipping Method", " ")
-            shipping_method = st.selectbox(
-                "Shipping Method",
-                [" ", "Nivel 1 PU", "Nivel 3 PU", "Nivel 3 DEL"],
-                index=[" ", "Nivel 1 PU", "Nivel 3 PU", "Nivel 3 DEL"].index(ship_val),
-                key="detail_Shipping"
-            )
-            if shipping_method != ship_val:
-                updated_fields["Shipping Method"] = shipping_method
-
-        # --- 3) Save, Delete, Back ---
-        st.markdown("---")
-        col_save, col_delete, col_back = st.columns([2, 1, 1])
-        with col_save:
-            if updated_fields and st.button("💾 Save Changes", use_container_width=True):
-                request.update(updated_fields)
-                st.session_state.requests[index] = request
-                save_data()
-                st.success("✅ Changes saved.")
-                st.experimental_rerun()
-
-        with col_delete:
-            if st.button("🗑️ Delete Request", use_container_width=True):
-                delete_request(index)
-
-        with col_back:
-            if st.button("⬅ Back to All Requests", use_container_width=True):
-                go_to("requests")
-
-        # --- 4) Comments Section ---
-        st.markdown("### 💬 Comments")
-        for comment in st.session_state.comments.get(str(index), []):
-            st.markdown(f"**{comment['author']}**: {comment['text']}")
-
-        new_comment = st.text_area("Add a comment", key="detail_NewComment")
-        if st.button("Submit Comment"):
-            if new_comment.strip():
-                add_comment(index, "User", new_comment.strip())
-                st.success("✅ Comment added.")
-                st.experimental_rerun()
-
-    else:
+    if index is None or index >= len(st.session_state.requests):
         st.error("Invalid request selected.")
+        st.stop()
+
+    request = st.session_state.requests[index]
+    updated_fields = {}
+    is_purchase = (request.get("Type") == "💲")
+
+    # ──────────── ORDER INFORMATION ────────────
+    with st.container():
+        st.markdown("### 📄 Order Information")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Ref# / Order#
+            order_number_val = request.get("Order#", "")
+            order_number = st.text_input(
+                "Ref#",
+                value=order_number_val,
+                key="detail_Order#"
+            )
+            if order_number != order_number_val:
+                updated_fields["Order#"] = order_number
+
+            # Dynamic rows for Description & Quantity
+            desc_list = request.get("Description", [])
+            qty_list = request.get("Quantity", [])
+            num_rows = max(len(desc_list), len(qty_list), 1)
+            st.markdown("#### 📋 Items")
+            new_descriptions = []
+            new_quantities = []
+            for i in range(num_rows):
+                cA, cB = st.columns(2)
+                desc_val = desc_list[i] if i < len(desc_list) else ""
+                qty_val = qty_list[i] if i < len(qty_list) else ""
+                new_desc = cA.text_input(
+                    f"Description #{i+1}",
+                    value=desc_val,
+                    key=f"detail_desc_{i}"
+                ).strip()
+                new_qty_raw = cB.text_input(
+                    f"Quantity #{i+1}",
+                    value=str(qty_val),
+                    key=f"detail_qty_{i}"
+                ).strip()
+                try:
+                    new_qty = int(float(new_qty_raw)) if new_qty_raw else ""
+                except:
+                    new_qty = new_qty_raw
+                new_descriptions.append(new_desc)
+                new_quantities.append(new_qty)
+            if new_descriptions != desc_list:
+                updated_fields["Description"] = new_descriptions
+            if new_quantities != qty_list:
+                updated_fields["Quantity"] = new_quantities
+
+            # Status dropdown
+            status_options = [" ", "PENDING", "ORDERED", "READY", "CANCELLED", "IN TRANSIT", "INCOMPLETE"]
+            current_status = request.get("Status", " ")
+            if current_status not in status_options:
+                current_status = " "
+            status = st.selectbox(
+                "Status",
+                status_options,
+                index=status_options.index(current_status),
+                key="detail_Status"
+            )
+            if status != current_status:
+                updated_fields["Status"] = status
+
+        with col2:
+            # Tracking# / Invoice
+            invoice_val = request.get("Invoice", "")
+            invoice = st.text_input(
+                "Tracking#",
+                value=invoice_val,
+                key="detail_Invoice"
+            )
+            if invoice != invoice_val:
+                updated_fields["Invoice"] = invoice
+
+            # Proveedor vs Cliente
+            partner_label = "Proveedor" if is_purchase else "Cliente"
+            partner_val = request.get(partner_label, "")
+            partner = st.text_input(
+                partner_label,
+                value=partner_val,
+                key=f"detail_{partner_label}"
+            )
+            if partner != partner_val:
+                updated_fields[partner_label] = partner
+
+            # Método de Pago
+            pago_val = request.get("Pago", " ")
+            pago = st.selectbox(
+                "Método de Pago",
+                [" ", "Wire", "Cheque", "Credito", "Efectivo"],
+                index=[" ", "Wire", "Cheque", "Credito", "Efectivo"].index(pago_val),
+                key="detail_Pago"
+            )
+            if pago != pago_val:
+                updated_fields["Pago"] = pago
+
+            # Encargado
+            encargado_val = request.get("Encargado", " ")
+            encargado = st.selectbox(
+                "Encargado",
+                [" ", "Andres", "Tito", "Luz", "David", "Marcela", "John", "Carolina", "Thea"],
+                index=[" ", "Andres", "Tito", "Luz", "David", "Marcela", "John", "Carolina", "Thea"].index(encargado_val),
+                key="detail_Encargado"
+            )
+            if encargado != encargado_val:
+                updated_fields["Encargado"] = encargado
+
+    # ──────────── SHIPPING INFORMATION ────────────
+    with st.container():
+        st.markdown("### 🚚 Shipping Information")
+        col3, col4 = st.columns(2)
+        with col3:
+            date_val = request.get("Date", str(date.today()))
+            order_date = st.date_input(
+                "Order Date",
+                value=pd.to_datetime(date_val),
+                key="detail_Date"
+            )
+            if str(order_date) != date_val:
+                updated_fields["Date"] = str(order_date)
+        with col4:
+            eta_val = request.get("ETA Date", str(date.today()))
+            eta_date = st.date_input(
+                "ETA Date",
+                value=pd.to_datetime(eta_val),
+                key="detail_ETA"
+            )
+            if str(eta_date) != eta_val:
+                updated_fields["ETA Date"] = str(eta_date)
+
+        ship_val = request.get("Shipping Method", " ")
+        shipping_method = st.selectbox(
+            "Shipping Method",
+            [" ", "Nivel 1 PU", "Nivel 3 PU", "Nivel 3 DEL"],
+            index=[" ", "Nivel 1 PU", "Nivel 3 PU", "Nivel 3 DEL"].index(ship_val),
+            key="detail_Shipping"
+        )
+        if shipping_method != ship_val:
+            updated_fields["Shipping Method"] = shipping_method
+
+    # ──────────── SAVE / DELETE / BACK BUTTONS ────────────
+    st.markdown("---")
+    col_save, col_delete, col_back = st.columns([2, 1, 1])
+    with col_save:
+        if updated_fields and st.button("💾 Save Changes", use_container_width=True):
+            request.update(updated_fields)
+            st.session_state.requests[index] = request
+            save_data()
+            st.success("✅ Changes saved.")
+            st.rerun()
+    with col_delete:
+        if st.button("🗑️ Delete Request", use_container_width=True):
+            delete_request(index)
+    with col_back:
+        if st.button("⬅ Back to All Requests", use_container_width=True):
+            go_to("requests")
+
+    # ─────────────────────────────────────────────────────────────────────
+    #  COMMENTS SECTION (WhatsApp‐style bubbles with author names)
+    # ─────────────────────────────────────────────────────────────────────
+
+    # 1) Inject CSS for chat bubbles + author labels
+    st.markdown(
+        """
+        <style>
+        /* Incoming author label */
+        .chat-author-in {
+            font-size: 12px;
+            color: #555;
+            margin-left: 5px;
+            margin-top: 8px;
+            clear: both;
+        }
+        /* Outgoing author label */
+        .chat-author-out {
+            font-size: 12px;
+            color: #34B7F1;
+            margin-right: 5px;
+            margin-top: 8px;
+            clear: both;
+            text-align: right;
+        }
+        /* Incoming bubble */
+        .chat-bubble-in {
+            background: #E5E5EA;
+            color: #000;
+            padding: 8px 12px;
+            border-radius: 18px;
+            margin: 2px 0;
+            max-width: 60%;
+            float: left;
+            clear: both;
+        }
+        /* Outgoing bubble */
+        .chat-bubble-out {
+            background: #34B7F1;
+            color: #FFF;
+            padding: 8px 12px;
+            border-radius: 18px;
+            margin: 2px 0;
+            max-width: 60%;
+            float: right;
+            clear: both;
+        }
+        /* Timestamp below each bubble */
+        .chat-timestamp {
+            font-size: 10px;
+            color: #888;
+            margin-top: 2px;
+            margin-bottom: 8px;
+        }
+        /* Clear floats */
+        .clearfix {
+            clear: both;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # 2) Render existing comments with author + bubble
+    st.markdown("### 💬 Comments (Chat‐Style)")
+    existing_comments = st.session_state.comments.get(str(index), [])
+
+    for comment in existing_comments:
+        author = comment["author"]
+        text = comment["text"]
+        when = comment.get("when", "")  # e.g. "2025-06-06 17:12"
+
+        if author == st.session_state.user_name:
+            # Outgoing: show author name in blue on right, then blue bubble on right
+            st.markdown(
+                f'<div class="chat-author-out">{author}</div>'
+                f'<div class="chat-bubble-out">{text}</div>'
+                f'<div class="chat-timestamp" style="text-align: right;">{when}</div>'
+                f'<div class="clearfix"></div>',
+                unsafe_allow_html=True
+            )
+        else:
+            # Incoming: show author name in gray on left, then gray bubble on left
+            st.markdown(
+                f'<div class="chat-author-in">{author}</div>'
+                f'<div class="chat-bubble-in">{text}</div>'
+                f'<div class="chat-timestamp" style="text-align: left;">{when}</div>'
+                f'<div class="clearfix"></div>',
+                unsafe_allow_html=True
+            )
+
+    # 3) Input for new message & Send button
+    st.markdown("---")
+    new_message = st.text_input("Type your message here…", key=f"new_msg_{index}")
+    if st.button("Send", key=f"send_{index}"):
+        if new_message.strip():
+            add_comment(index, st.session_state.user_name, new_message.strip())
+            # Clear the input and rerun so the new message appears
+            st.session_state[f"new_msg_{index}"] = ""
+            st.rerun()
