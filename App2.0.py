@@ -482,16 +482,13 @@ elif st.session_state.page == "requests":
 
     # --- Filters ---
     col1, col2, col3 = st.columns([3, 2, 2])
-
     with col1:
         search_term = st.text_input("Search", placeholder="Search requests...")
-
     with col2:
         status_filter = st.selectbox(
             "Status",
             ["All", "PENDING", "IN TRANSIT", "READY", "CANCELLED", "CONFIRMED", "INCOMPLETE"]
         )
-
     with col3:
         type_filter = st.selectbox(
             "Request type",
@@ -511,14 +508,14 @@ elif st.session_state.page == "requests":
             filtered_requests.append(req)
 
     # --- Sort by soonest ETA date (earliest first) ---
-    from datetime import datetime
+    from datetime import datetime, date
 
     def parse_eta(req):
         eta_str = req.get("ETA Date", "")
         try:
             return datetime.strptime(eta_str, "%Y-%m-%d").date()
         except:
-            return datetime.max.date()
+            return date.max
 
     filtered_requests = sorted(filtered_requests, key=parse_eta)
 
@@ -528,32 +525,33 @@ elif st.session_state.page == "requests":
         <style>
         .header-row {
             font-weight: bold;
-            font-size: 18px;        /* increased font size */
+            font-size: 18px;
             padding: 0.5rem 0;
         }
-        .overdue {
+        .overdue-text {
             color: #e74c3c;
             font-weight: 600;
+            font-size: 13px;
         }
         </style>
         """, unsafe_allow_html=True)
 
         # --- Table Header ---
-        header_cols = st.columns([1, 2, 3, 1, 2, 2, 2, 2, 2, 1, 1])
+        header_cols = st.columns([1, 2, 3, 1, 2, 2, 2, 2, 2, 1])
         headers = [
             "Type", "Ref#", "Description", "Qty", "Status",
-            "Ordered Date", "ETA Date", "Shipping Method", "Encargado", "Alert", ""
+            "Ordered Date", "ETA Date", "Shipping Method", "Encargado", ""
         ]
         for col, header in zip(header_cols, headers):
             col.markdown(f"<div class='header-row'>{header}</div>", unsafe_allow_html=True)
 
         # --- Today’s date for comparison ---
-        today = datetime.today().date()
+        today = date.today()
 
         # --- Table Rows ---
         for i, req in enumerate(filtered_requests):
             with st.container():
-                cols = st.columns([1, 2, 3, 1, 2, 2, 2, 2, 2, 1, 1])
+                cols = st.columns([1, 2, 3, 1, 2, 2, 2, 2, 2, 1])
 
                 # 1) Type (icon)
                 cols[0].write(req.get("Type", ""))
@@ -572,17 +570,27 @@ elif st.session_state.page == "requests":
                 qty_display = ", ".join([str(q) for q in qty_list]) if isinstance(qty_list := req.get("Quantity", []), list) else str(qty_list)
                 cols[3].write(qty_display)
 
-                # 5) Status badge
-                cols[4].markdown(
-                    format_status_badge(req.get("Status", "")),
-                    unsafe_allow_html=True
-                )
+                # 5) Status badge + possibly “Overdue” below it
+                status_val = req.get("Status", "").upper()
+                status_html = format_status_badge(status_val)
+
+                # Determine if this row is overdue:
+                eta_str = req.get("ETA Date", "")
+                try:
+                    eta_date = datetime.strptime(eta_str, "%Y-%m-%d").date()
+                except:
+                    eta_date = None
+
+                if eta_date and eta_date < today and status_val != "READY":
+                    # Append a small red “⚠️ Overdue” line below the badge
+                    status_html += "<div class='overdue-text'>⚠️ Overdue</div>"
+
+                cols[4].markdown(status_html, unsafe_allow_html=True)
 
                 # 6) Ordered Date
                 cols[5].write(req.get("Date", ""))
 
                 # 7) ETA Date
-                eta_str = req.get("ETA Date", "")
                 cols[6].write(eta_str)
 
                 # 8) Shipping Method
@@ -591,23 +599,8 @@ elif st.session_state.page == "requests":
                 # 9) Encargado
                 cols[8].write(req.get("Encargado", ""))
 
-                # 10) Check for overdue & show alert if needed
-                try:
-                    eta_date = datetime.strptime(eta_str, "%Y-%m-%d").date()
-                except:
-                    eta_date = None
-
-                status_val = req.get("Status", "").upper()
-                if eta_date and eta_date < today and status_val != "READY":
-                    cols[9].markdown(
-                        "<span class='overdue'>⚠️ Overdue</span>",
-                        unsafe_allow_html=True
-                    )
-                else:
-                    cols[9].write("")  # no alert
-
-                # 11) “View” button → go to detail
-                if cols[10].button("🔍", key=f"view_{i}"):
+                # 10) “View” button → go to detail
+                if cols[9].button("🔍", key=f"view_{i}"):
                     full_index = st.session_state.requests.index(req)
                     st.session_state.selected_request = full_index
                     go_to("detail")
