@@ -472,6 +472,12 @@ elif st.session_state.page == "sales_order":
             go_to("home")
 
 elif st.session_state.page == "requests":
+    # --- Auto-refresh every 5 seconds ---
+    _ = st_autorefresh(interval=5000, limit=None, key="requests_refresh")
+
+    # --- Re-load data from disk so we see the latest requests ---
+    load_data()
+
     st.header("📋 All Requests")
 
     # --- Filters ---
@@ -504,6 +510,18 @@ elif st.session_state.page == "requests":
         if matches_search and matches_status and matches_type:
             filtered_requests.append(req)
 
+    # --- Sort by soonest ETA date (earliest first) ---
+    from datetime import datetime
+
+    def parse_eta(req):
+        eta_str = req.get("ETA Date", "")
+        try:
+            return datetime.strptime(eta_str, "%Y-%m-%d").date()
+        except:
+            return datetime.max.date()
+
+    filtered_requests = sorted(filtered_requests, key=parse_eta)
+
     if filtered_requests:
         # --- Table Header Styling (make headers larger) ---
         st.markdown("""
@@ -513,22 +531,29 @@ elif st.session_state.page == "requests":
             font-size: 18px;        /* increased font size */
             padding: 0.5rem 0;
         }
+        .overdue {
+            color: #e74c3c;
+            font-weight: 600;
+        }
         </style>
         """, unsafe_allow_html=True)
 
         # --- Table Header ---
-        header_cols = st.columns([1, 2, 3, 1, 2, 2, 2, 2, 2, 1])
+        header_cols = st.columns([1, 2, 3, 1, 2, 2, 2, 2, 2, 1, 1])
         headers = [
             "Type", "Ref#", "Description", "Qty", "Status",
-            "Ordered Date", "ETA Date", "Shipping Method", "Encargado", ""
+            "Ordered Date", "ETA Date", "Shipping Method", "Encargado", "Alert", ""
         ]
         for col, header in zip(header_cols, headers):
             col.markdown(f"<div class='header-row'>{header}</div>", unsafe_allow_html=True)
 
+        # --- Today’s date for comparison ---
+        today = datetime.today().date()
+
         # --- Table Rows ---
         for i, req in enumerate(filtered_requests):
             with st.container():
-                cols = st.columns([1, 2, 3, 1, 2, 2, 2, 2, 2, 1])
+                cols = st.columns([1, 2, 3, 1, 2, 2, 2, 2, 2, 1, 1])
 
                 # 1) Type (icon)
                 cols[0].write(req.get("Type", ""))
@@ -544,7 +569,7 @@ elif st.session_state.page == "requests":
 
                 # 4) Quantity (join list if needed)
                 qty_list = req.get("Quantity", [])
-                qty_display = ", ".join([str(q) for q in qty_list]) if isinstance(qty_list, list) else str(qty_list)
+                qty_display = ", ".join([str(q) for q in qty_list]) if isinstance(qty_list := req.get("Quantity", []), list) else str(qty_list)
                 cols[3].write(qty_display)
 
                 # 5) Status badge
@@ -557,7 +582,8 @@ elif st.session_state.page == "requests":
                 cols[5].write(req.get("Date", ""))
 
                 # 7) ETA Date
-                cols[6].write(req.get("ETA Date", ""))
+                eta_str = req.get("ETA Date", "")
+                cols[6].write(eta_str)
 
                 # 8) Shipping Method
                 cols[7].write(req.get("Shipping Method", ""))
@@ -565,8 +591,23 @@ elif st.session_state.page == "requests":
                 # 9) Encargado
                 cols[8].write(req.get("Encargado", ""))
 
-                # 10) “View” button → go to detail
-                if cols[9].button("🔍", key=f"view_{i}"):
+                # 10) Check for overdue & show alert if needed
+                try:
+                    eta_date = datetime.strptime(eta_str, "%Y-%m-%d").date()
+                except:
+                    eta_date = None
+
+                status_val = req.get("Status", "").upper()
+                if eta_date and eta_date < today and status_val != "READY":
+                    cols[9].markdown(
+                        "<span class='overdue'>⚠️ Overdue</span>",
+                        unsafe_allow_html=True
+                    )
+                else:
+                    cols[9].write("")  # no alert
+
+                # 11) “View” button → go to detail
+                if cols[10].button("🔍", key=f"view_{i}"):
                     full_index = st.session_state.requests.index(req)
                     st.session_state.selected_request = full_index
                     go_to("detail")
@@ -575,6 +616,7 @@ elif st.session_state.page == "requests":
 
     if st.button("⬅ Back to Home"):
         go_to("home")
+
 
 elif st.session_state.page == "detail":
     st.markdown("## 📂 Request Details")
