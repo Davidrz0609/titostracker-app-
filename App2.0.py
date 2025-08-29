@@ -16,7 +16,7 @@ def connect_to_gsheet(creds_json, spreadsheet_name, sheet_name):
     return spreadsheet.worksheet(sheet_name)  # Access specific sheet by name
 
 # Google Sheet credentials and details
-SPREADSHEET_NAME = 'Streamlit'
+SPREADSHEET_NAME = 'PRUEBA 2'
 SHEET_NAME = 'Hoja 1'
 CREDENTIALS_FILE = './credentials.json'
 
@@ -56,4 +56,5 @@ with st.sidebar:
 st.header("Data Table")
 df = read_data()
 st.dataframe(df, width=800, height=400)
+
 
