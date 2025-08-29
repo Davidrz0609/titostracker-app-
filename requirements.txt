@@ -1,0 +1,2 @@
+streamlit_autorefresh
+st_autorefresh
